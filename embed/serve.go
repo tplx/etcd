@@ -107,6 +107,9 @@ func (sctx *serveCtx) serve(
 		}
 	}()
 
+	// Modification:
+	// Add HeaderFieldPrefix for grpc listener.
+	// Change http listener HTTP1 -> Any for satisfying fBox h2c.
 	if sctx.insecure {
 		gs = v3rpc.Server(s, nil, gopts...)
 		v3electionpb.RegisterElectionServer(gs, servElection)
@@ -114,7 +117,8 @@ func (sctx *serveCtx) serve(
 		if sctx.serviceRegister != nil {
 			sctx.serviceRegister(gs)
 		}
-		grpcl := m.Match(cmux.HTTP2())
+		//grpcl := m.Match(cmux.HTTP2())
+		grpcl := m.Match(cmux.HTTP2HeaderFieldPrefix("content-type", "application/grpc"))
 		go func() { errHandler(gs.Serve(grpcl)) }()
 
 		var gwmux *gw.ServeMux
@@ -131,7 +135,7 @@ func (sctx *serveCtx) serve(
 			Handler:  createAccessController(sctx.lg, s, httpmux),
 			ErrorLog: logger, // do not log user error
 		}
-		httpl := m.Match(cmux.HTTP1())
+		httpl := m.Match(cmux.Any())
 		go func() { errHandler(srvhttp.Serve(httpl)) }()
 
 		sctx.serversC <- &servers{grpc: gs, http: srvhttp}
